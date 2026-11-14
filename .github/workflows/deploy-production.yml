@@ -1,0 +1,72 @@
+# Déploiement PRODUCTION — JAMAIS automatique.
+# Déclenché uniquement manuellement via l'interface GitHub Actions.
+#
+# ⚠️ INFORMATION IMPORTANTE SUR LES COMPTES GITHUB GRATUITS :
+# La protection par "Required reviewers" sur les environnements (environments)
+# nécessite GitHub Pro/Team/Enterprise pour les DÉPÔTS PRIVÉS.
+# Avec un compte gratuit + dépôt privé, l'environnement "production" sera créé
+# mais il ne bloquera PAS le déploiement pour demander une approbation.
+#
+# ALTERNATIVE GRATUITE : laisser ce workflow désactivé par défaut.
+# Pour l'activer, aller dans GitHub > Actions > "Deploy Production" > Enable.
+# Ou utiliser la branche `protected-prod` que seul le propriétaire peut pousser.
+#
+# Voir : https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#required-reviewers
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version ou tag à déployer (ex : v1.2.0)"
+        required: true
+      reason:
+        description: "Raison du déploiement"
+        required: true
+
+jobs:
+  test:
+    name: Tests de validation finale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
+      - run: bun test
+
+  deploy-production:
+    name: "⚠️ Déploiement en PRODUCTION"
+    needs: test
+    runs-on: ubuntu-latest
+    # Cet environnement DOIT être configuré dans GitHub Settings → Environments
+    # avec une règle : « Required reviewers » → liste des responsables autorisés.
+    # Le déploiement ne s'exécute qu'après approbation manuelle.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Déploiement SSH vers le VPS production
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_APP_DIR }}
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            bun install --frozen-lockfile
+            bun run build
+            pm2 reload mqr
+            echo "✅ Production déployée : ${{ github.event.inputs.version }} — $(date)"
+
+      - name: Annotation du déploiement
+        run: |
+          echo "🚀 Déployé par ${{ github.actor }}"
+          echo "📋 Raison : ${{ github.event.inputs.reason }}"
+          echo "🏷️ Version : ${{ github.event.inputs.version }}"

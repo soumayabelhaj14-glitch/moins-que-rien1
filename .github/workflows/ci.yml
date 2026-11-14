@@ -1,0 +1,33 @@
+# CI — Tests automatiques sur toutes les branches
+# Aucun déploiement ici. Se déclenche à chaque push et pull request.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Tests & TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installer les dépendances
+        run: bun install --frozen-lockfile
+
+      - name: Vérification TypeScript
+        run: bunx tsc --noEmit
+
+      - name: Tests unitaires
+        run: bun test
+
+      - name: Résumé
+        if: always()
+        run: echo "✅ CI terminé"

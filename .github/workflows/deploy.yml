@@ -1,0 +1,13 @@
+# ⚠️  CE WORKFLOW EST DÉSACTIVÉ
+#
+# Il a été neutralisé car il déclenchait un déploiement automatique
+# en production sur chaque push vers la branche main, sans approbation manuelle.
+#
+# Remplacé par :
+#   - .github/workflows/ci.yml          → tests sur toutes les branches
+#   - .github/workflows/deploy-staging.yml    → déploiement automatique sur staging (branche staging)
+#   - .github/workflows/deploy-production.yml → déploiement MANUEL UNIQUEMENT (workflow_dispatch)
+#
+# Ne pas réactiver ce fichier. Supprimer après validation.
+
+# on:  <-- désactivé intentionnellement, aucun déclencheur

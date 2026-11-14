@@ -1,0 +1,53 @@
+# Déploiement STAGING — se déclenche uniquement sur la branche `staging`
+# Ne touche jamais à la production.
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Raison du déploiement manuel"
+        required: false
+        default: "déploiement manuel"
+
+jobs:
+  test:
+    name: Tests avant déploiement
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
+      - run: bun test
+
+  deploy-staging:
+    name: Déploiement vers l'environnement de test
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging   # environnement GitHub protégé par règle d'approbation optionnelle
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Déploiement SSH vers le VPS staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.STAGING_APP_DIR }}
+            git fetch origin staging
+            git checkout staging
+            git pull origin staging
+            bun install --frozen-lockfile
+            bun run build
+            # PORT 3001 pour staging, 3000 pour prod
+            pm2 reload mqr-staging || pm2 start deploy/ecosystem.staging.cjs
+            echo "✅ Staging déployé : $(date)"

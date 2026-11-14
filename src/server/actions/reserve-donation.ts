@@ -77,15 +77,16 @@ export const reserveDonationFn = createServerFn({ method: "POST" })
       return { ok: false, error: "Erreur lors de la réservation.", code: "db" };
     }
 
-    // La fonction retourne un objet JSON { ok, donation_id?, error?, code? }
-    type RpcResult = { ok: boolean; donation_id?: string; error?: string; code?: string };
+    // La fonction retourne un objet JSON { ok, donation_id?, message?, code? }
+    // Note: la clé "error" est évitée car Supabase-js v2 l'intercepte dans la réponse RPC.
+    type RpcResult = { ok: boolean; donation_id?: string; message?: string; code?: string };
     const res = result as unknown as RpcResult;
 
     if (!res.ok) {
       const code = (res.code ?? "db") as ReserveDonationResult extends { ok: false; code: infer C } ? C : never;
       return {
         ok: false,
-        error: res.error ?? "Erreur inconnue.",
+        error: res.message ?? "Erreur inconnue.",
         code,
       };
     }

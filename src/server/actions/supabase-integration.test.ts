@@ -61,7 +61,7 @@ const anon = HAS_SUPABASE
 type RpcResult = {
   ok: boolean;
   donation_id?: string;
-  error?: string;
+  message?: string;
   code?: string;
 };
 
@@ -338,7 +338,7 @@ describe.skipIf(!HAS_SUPABASE)("I4 — reserve_donation() : anti-doublon atomiqu
 
     expect(result.ok).toBe(false);
     expect(result.code).toBe("already_reserved");
-    expect(typeof result.error).toBe("string");
+    expect(typeof result.message).toBe("string");
   });
 
   it("un tiers (userA) ne peut pas non plus réserver le même don", async () => {

@@ -392,32 +392,32 @@ begin
   where id = p_listing_id;
 
   if not found then
-    return json_build_object('ok', false, 'error', 'Annonce introuvable.', 'code', 'not_found');
+    return json_build_object('ok', false, 'message', 'Annonce introuvable.', 'code', 'not_found');
   end if;
   if v_listing.status <> 'published' then
-    return json_build_object('ok', false, 'error', 'Cette annonce n''est plus disponible.', 'code', 'not_found');
+    return json_build_object('ok', false, 'message', 'Cette annonce n''est plus disponible.', 'code', 'not_found');
   end if;
   if v_listing.mode not in ('don', 'don_association') then
-    return json_build_object('ok', false, 'error', 'Cette annonce n''est pas un don.', 'code', 'not_found');
+    return json_build_object('ok', false, 'message', 'Cette annonce n''est pas un don.', 'code', 'not_found');
   end if;
 
   -- 2. Pour les dons d'association : vérifier que l'association est vérifiée et appartient à l'utilisateur
   if v_listing.mode = 'don_association' then
     if p_association_id is null then
-      return json_build_object('ok', false, 'error', 'Ce don est réservé aux associations vérifiées.', 'code', 'not_verified_assoc');
+      return json_build_object('ok', false, 'message', 'Ce don est réservé aux associations vérifiées.', 'code', 'not_verified_assoc');
     end if;
     select id, verified_at, user_id into v_assoc
     from public.associations
     where id = p_association_id;
 
     if not found then
-      return json_build_object('ok', false, 'error', 'Association introuvable.', 'code', 'not_verified_assoc');
+      return json_build_object('ok', false, 'message', 'Association introuvable.', 'code', 'not_verified_assoc');
     end if;
     if v_assoc.verified_at is null then
-      return json_build_object('ok', false, 'error', 'Votre association n''est pas encore vérifiée.', 'code', 'not_verified_assoc');
+      return json_build_object('ok', false, 'message', 'Votre association n''est pas encore vérifiée.', 'code', 'not_verified_assoc');
     end if;
     if v_assoc.user_id <> p_user_id then
-      return json_build_object('ok', false, 'error', 'Vous n''êtes pas le représentant de cette association.', 'code', 'auth');
+      return json_build_object('ok', false, 'message', 'Vous n''êtes pas le représentant de cette association.', 'code', 'auth');
     end if;
   end if;
 
@@ -440,10 +440,10 @@ begin
     select id into v_donation from public.donations
     where listing_id = p_listing_id and status in ('reserved', 'completed');
     if found then
-      return json_build_object('ok', false, 'error', 'Ce don a déjà été réservé.', 'code', 'already_reserved');
+      return json_build_object('ok', false, 'message', 'Ce don a déjà été réservé.', 'code', 'already_reserved');
     end if;
     -- Aucune ligne 'open' n'existe (don sans initialisation)
-    return json_build_object('ok', false, 'error', 'Ce don n''est pas disponible.', 'code', 'not_found');
+    return json_build_object('ok', false, 'message', 'Ce don n''est pas disponible.', 'code', 'not_found');
   end if;
 
   return json_build_object('ok', true, 'donation_id', v_updated_id);

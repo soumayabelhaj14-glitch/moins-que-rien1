@@ -100,6 +100,10 @@ function Deposer() {
   /* ── Champs communs ──────────────────────────────────────── */
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [brandModel, setBrandModel] = useState("");
+  const [working, setWorking] = useState<"oui" | "partiellement" | "non" | "non-teste">("oui");
+  const [accessories, setAccessories] = useState("");
+  const [location, setLocation] = useState("");
   const [ean, setEan] = useState("");
   const [reference, setReference] = useState("");
 
@@ -323,7 +327,15 @@ function Deposer() {
         headers: { Authorization: `Bearer ${session.access_token}` },
         data: {
           title: title.trim(),
-          ...(description.trim() ? { description: description.trim() } : {}),
+          ...(description.trim() || brandModel.trim() || accessories.trim()
+            ? { description: [
+                brandModel.trim() ? `Marque/modèle : ${brandModel.trim()}` : "",
+                `Fonctionnement : ${{ oui: "Fonctionne correctement", partiellement: "Fonctionne partiellement", non: "Ne fonctionne pas", "non-teste": "Non testé" }[working]}`,
+                accessories.trim() ? `Accessoires : ${accessories.trim()}` : "",
+                description.trim(),
+              ].filter(Boolean).join("\n") }
+            : {}),
+          ...(location.trim() ? { location: location.trim() } : {}),
           ...(contactEmail.trim() ? { contactEmail: contactEmail.trim() } : {}),
           ...(contactPhone.trim() ? { contactPhone: contactPhone.trim() } : {}),
           category: mode === "particulier" ? p2pCategory
@@ -496,15 +508,69 @@ function Deposer() {
           />
         </label>
 
-        {/* Observations complémentaires */}
+        {/* Marque / Modèle */}
         <label className="grid gap-2 text-sm">
-          Observations complémentaires
-          <span className="text-xs text-muted-foreground font-normal -mt-1">
-            Défauts visibles, accessoires inclus, raison de la vente, disponibilité…
-          </span>
+          Marque et modèle <span className="font-normal text-muted-foreground">(si pertinent)</span>
+          <input
+            className={field}
+            placeholder="Ex : Samsung Galaxy A54, Bosch WAJ28010FF…"
+            value={brandModel}
+            onChange={(e) => setBrandModel(e.target.value)}
+            maxLength={120}
+          />
+        </label>
+
+        {/* Fonctionnement */}
+        <div className="grid gap-2 text-sm">
+          <span className="font-medium">Fonctionne correctement ?</span>
+          <div className="flex flex-wrap gap-2">
+            {(["oui", "partiellement", "non", "non-teste"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setWorking(v)}
+                className={`rounded-full border px-4 py-1.5 text-sm transition ${
+                  working === v
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card hover:border-primary/50"
+                }`}
+              >
+                {{ oui: "Oui", partiellement: "Partiellement", non: "Non", "non-teste": "Non testé" }[v]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Accessoires */}
+        <label className="grid gap-2 text-sm">
+          Accessoires inclus <span className="font-normal text-muted-foreground">(facultatif)</span>
+          <input
+            className={field}
+            placeholder="Ex : chargeur, télécommande, boîte d'origine, notice…"
+            value={accessories}
+            onChange={(e) => setAccessories(e.target.value)}
+            maxLength={200}
+          />
+        </label>
+
+        {/* Commune / Code postal */}
+        <label className="grid gap-2 text-sm">
+          Commune ou code postal
+          <input
+            className={field}
+            placeholder="Ex : Paris 75011, Lyon, 69003…"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            maxLength={80}
+          />
+        </label>
+
+        {/* Un défaut ou quelque chose à signaler ? */}
+        <label className="grid gap-2 text-sm">
+          Un défaut ou quelque chose à signaler ?
           <textarea
-            className={`${field} min-h-[100px] resize-y`}
-            placeholder="Ex : légère rayure sur le côté gauche, télécommande incluse, vendu car déménagement…"
+            className={`${field} min-h-[90px] resize-y`}
+            placeholder="Ex : légère rayure sur le côté gauche, vendu car déménagement, disponible le week-end uniquement…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}
@@ -882,6 +948,7 @@ function Deposer() {
                 </label>
               </p>
               <p className="text-xs opacity-60">JPG, PNG ou WebP — max 5 photos</p>
+              <p className="text-xs text-primary/70 font-medium">Photographiez aussi les défauts visibles</p>
             </div>
           )}
         </div>

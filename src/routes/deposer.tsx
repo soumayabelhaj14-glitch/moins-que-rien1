@@ -21,7 +21,7 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Info, AlertCircle, Loader2, ExternalLink, CheckCircle2, Clock } from "lucide-react";
+import { Info, AlertCircle, Loader2, ExternalLink, CheckCircle2, Clock, ImagePlus, X, Phone, Mail } from "lucide-react";
 import { defaultP2PConfig, type CategoryId, type ConditionId } from "@/lib/pricing/p2p";
 import { defaultProConfig } from "@/lib/pricing/pro";
 import { defaultVehicleConfig } from "@/lib/pricing/vehicle";
@@ -58,9 +58,19 @@ function Deposer() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ listingId: string; pendingPriceReview: boolean } | null>(null);
 
-  /* ── Photos ──────────────────────────────────────────────── */
+  /* ── Photos (sélectionnées avant soumission, uploadées après) ─── */
   const [photos, setPhotos] = useState<{ url: string; uploading: boolean; error?: string }[]>([]);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  /** Fichiers sélectionnés localement avant soumission — uploadés juste après création */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  /** Prévisualisations locales (object URLs) correspondant à pendingFiles */
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  /* ── Coordonnées vendeur ─────────────────────────────────── */
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
 
   /* ── Mode ─────────────────────────────────────────────────── */
   const [mode, setMode] = useState<Mode>("particulier");
@@ -193,7 +203,59 @@ function Deposer() {
 
   const asking = typeof askingPrice === "number" ? askingPrice : 0;
 
+  /* ── Gestion des fichiers en attente (drop-zone pré-soumission) ── */
+  function addPendingFiles(files: FileList | File[]) {
+    const accepted = Array.from(files).filter((f) =>
+      ["image/jpeg", "image/png", "image/webp"].includes(f.type),
+    );
+    setPendingFiles((prev) => {
+      const merged = [...prev, ...accepted].slice(0, 5);
+      // Mettre à jour les previews en synchronisation
+      const urls = merged.map((f, i) => prev[i] ? pendingPreviews[i]! : URL.createObjectURL(f));
+      setPendingPreviews(urls);
+      return merged;
+    });
+  }
+
+  function removePendingFile(idx: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+    setPendingPreviews((prev) => {
+      URL.revokeObjectURL(prev[idx]!);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
   /* ── Upload de photos (après création de l'annonce) ─────── */
+  async function uploadPendingPhotos(listingId: string, token: string) {
+    for (const file of pendingFiles) {
+      const idx = photos.length;
+      setPhotos((prev) => [...prev, { url: "", uploading: true }]);
+      const reader = new FileReader();
+      await new Promise<void>((resolve) => {
+        reader.onload = async (ev) => {
+          const base64 = ev.target?.result as string;
+          try {
+            const result = await uploadPhotoFn({
+              headers: { Authorization: `Bearer ${token}` },
+              data: { listingId, fileBase64: base64, fileName: file.name },
+            });
+            if (result.ok) {
+              setPhotos((prev) => prev.map((p, i) => i === idx ? { url: result.signedUrl, uploading: false } : p));
+            } else {
+              setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, uploading: false, error: result.error } : p));
+              setPhotoUploadError(result.error);
+            }
+          } catch {
+            setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, uploading: false, error: "Erreur réseau" } : p));
+          }
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  /* ── Upload de photos supplémentaires après soumission ───── */
   async function handlePhotoSelect(
     e: React.ChangeEvent<HTMLInputElement>,
     listingId: string,
@@ -211,7 +273,6 @@ function Deposer() {
       return;
     }
 
-    // Lire en base64
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const base64 = ev.target?.result as string;
@@ -242,6 +303,10 @@ function Deposer() {
       setSubmitError("Le titre doit comporter au moins 5 caractères.");
       return;
     }
+    if (!contactEmail.trim() && !contactPhone.trim()) {
+      setSubmitError("Renseignez au moins un moyen de contact (e-mail ou téléphone) pour que les acheteurs puissent vous joindre.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -259,6 +324,8 @@ function Deposer() {
         data: {
           title: title.trim(),
           ...(description.trim() ? { description: description.trim() } : {}),
+          ...(contactEmail.trim() ? { contactEmail: contactEmail.trim() } : {}),
+          ...(contactPhone.trim() ? { contactPhone: contactPhone.trim() } : {}),
           category: mode === "particulier" ? p2pCategory
             : mode === "pro" ? proCategory
             : mode === "vehicule" ? vehType
@@ -294,6 +361,10 @@ function Deposer() {
         return;
       }
 
+      // Upload des photos sélectionnées avant soumission
+      if (pendingFiles.length > 0) {
+        await uploadPendingPhotos(result.listingId, session.access_token);
+      }
       setSubmitted({ listingId: result.listingId, pendingPriceReview: result.pendingPriceReview });
     } catch (err) {
       // L'erreur réseau survient quand le serveur plante avant de retourner une réponse
@@ -750,6 +821,105 @@ function Deposer() {
             </p>
           </div>
         )}
+
+        {/* ── Photos du produit (drop-zone) ── */}
+        <div className="grid gap-3">
+          <p className="text-sm font-medium flex items-center gap-2">
+            <ImagePlus className="h-4 w-4 text-primary" />
+            Photos du produit
+            <span className="ml-auto text-xs font-normal text-muted-foreground">{pendingFiles.length}/5</span>
+          </p>
+
+          {/* Grille des previews */}
+          {pendingPreviews.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingPreviews.map((url, i) => (
+                <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl border border-border">
+                  <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(i)}
+                    className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
+                    aria-label="Supprimer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Zone de dépôt */}
+          {pendingFiles.length < 5 && (
+            <div
+              ref={dropZoneRef}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                addPendingFiles(e.dataTransfer.files);
+              }}
+              className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-sm text-muted-foreground transition ${
+                isDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/40"
+              }`}
+            >
+              <ImagePlus className="h-7 w-7 opacity-40" />
+              <p className="text-center">
+                Glissez vos photos ici, ou{" "}
+                <label className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline">
+                  parcourir
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="sr-only"
+                    onChange={(e) => { if (e.target.files) addPendingFiles(e.target.files); e.target.value = ""; }}
+                  />
+                </label>
+              </p>
+              <p className="text-xs opacity-60">JPG, PNG ou WebP — max 5 photos</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Coordonnées du vendeur ── */}
+        <div className="grid gap-4 rounded-2xl border border-border bg-secondary/40 p-5">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Info className="h-4 w-4 text-primary shrink-0" />
+            Vos coordonnées de contact
+            <span className="ml-1 text-xs font-normal text-muted-foreground">(au moins un champ)</span>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Visibles sur votre annonce. L'acheteur choisira de vous contacter par e-mail ou par téléphone.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-2 text-sm">
+              <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> E-mail</span>
+              <input
+                type="email"
+                className={field}
+                placeholder="vous@exemple.fr"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                maxLength={200}
+                autoComplete="email"
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Téléphone</span>
+              <input
+                type="tel"
+                className={field}
+                placeholder="06 12 34 56 78"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                maxLength={20}
+                autoComplete="tel"
+              />
+            </label>
+          </div>
+        </div>
 
         {/* Erreur de soumission */}
         {submitError && (

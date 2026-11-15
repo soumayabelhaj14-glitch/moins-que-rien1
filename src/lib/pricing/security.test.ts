@@ -56,12 +56,15 @@ describe("Sécurité — calcul du plafond", () => {
 
 describe("Sécurité — immutabilité de la config", () => {
   it("modifier une copie de la config n'affecte pas defaultP2PConfig", () => {
-    // Simuler un attaquant qui essaie de modifier les taux depuis le client
+    // Simuler un attaquant qui essaie de gonfler les coefs d'ancienneté depuis le client.
+    // Depuis la refonte (startRate = 1.0 pour toutes les catégories), c'est le vecteur
+    // d'attaque réaliste : remplacer les ageCoefficients par [1, 1, 1, …] pour
+    // neutraliser la dépréciation liée à l'âge.
     const tamperedConfig: P2PConfig = {
       ...defaultP2PConfig,
       categories: defaultP2PConfig.categories.map((c) =>
         c.id === "informatique"
-          ? { ...c, startRate: 1.0 } // tentative : taux 100%
+          ? { ...c, ageCoefficients: [1, 1, 1, 1, 1, 1, 1] } // tentative : coefs à 100%
           : c,
       ),
     };
@@ -76,14 +79,13 @@ describe("Sécurité — immutabilité de la config", () => {
       defaultP2PConfig,
     ).maxPrice;
 
-    // Les résultats doivent différer (la config tamperedConfig a eu un effet)
+    // Les résultats doivent différer (la config tamperedConfig a bien eu un effet)
     expect(withTamperedConfig).not.toBe(withDefaultConfig);
-    // La config du serveur (defaultP2PConfig) est inchangée
-    const originalRate = defaultP2PConfig.categories.find((c) => c.id === "informatique")!.startRate;
-    expect(originalRate).toBe(0.15); // le taux d'origine est préservé
+    // La config serveur (defaultP2PConfig) est inchangée — coef à 2 ans = 0.357, pas 1
+    const originalAgeCoef2 = defaultP2PConfig.categories.find((c) => c.id === "informatique")!.ageCoefficients[2];
+    expect(originalAgeCoef2).toBe(0.357);
     // → Ceci confirme que la config serveur ne peut pas être modifiée par un client :
-    //   le client ne peut pas passer sa propre config (la server action utilise
-    //   defaultP2PConfig importé directement, non sérialisé dans la requête).
+    //   la server action importe defaultP2PConfig directement, sans désérialisation depuis la requête.
   });
 });
 

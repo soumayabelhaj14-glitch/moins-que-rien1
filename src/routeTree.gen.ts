@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConnexionRouteImport } from './routes/connexion'
 import { Route as DeposerRouteImport } from './routes/deposer'
+import { Route as DonsRouteImport } from './routes/dons'
+import { Route as MonCompteRouteImport } from './routes/mon-compte'
 import { Route as SimulateurRouteImport } from './routes/simulateur'
 import { Route as AnnonceIdRouteImport } from './routes/annonce.$id'
 import { Route as EspaceSlugRouteImport } from './routes/espace.$slug'
@@ -20,9 +23,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConnexionRoute = ConnexionRouteImport.update({
+  id: '/connexion',
+  path: '/connexion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeposerRoute = DeposerRouteImport.update({
   id: '/deposer',
   path: '/deposer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DonsRoute = DonsRouteImport.update({
+  id: '/dons',
+  path: '/dons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonCompteRoute = MonCompteRouteImport.update({
+  id: '/mon-compte',
+  path: '/mon-compte',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SimulateurRoute = SimulateurRouteImport.update({
@@ -43,14 +61,20 @@ const EspaceSlugRoute = EspaceSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/connexion': typeof ConnexionRoute
   '/deposer': typeof DeposerRoute
+  '/dons': typeof DonsRoute
+  '/mon-compte': typeof MonCompteRoute
   '/simulateur': typeof SimulateurRoute
   '/annonce/$id': typeof AnnonceIdRoute
   '/espace/$slug': typeof EspaceSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/connexion': typeof ConnexionRoute
   '/deposer': typeof DeposerRoute
+  '/dons': typeof DonsRoute
+  '/mon-compte': typeof MonCompteRoute
   '/simulateur': typeof SimulateurRoute
   '/annonce/$id': typeof AnnonceIdRoute
   '/espace/$slug': typeof EspaceSlugRoute
@@ -58,20 +82,42 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/connexion': typeof ConnexionRoute
   '/deposer': typeof DeposerRoute
+  '/dons': typeof DonsRoute
+  '/mon-compte': typeof MonCompteRoute
   '/simulateur': typeof SimulateurRoute
   '/annonce/$id': typeof AnnonceIdRoute
   '/espace/$slug': typeof EspaceSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/deposer' | '/simulateur' | '/annonce/$id' | '/espace/$slug'
+  fullPaths:
+    | '/'
+    | '/connexion'
+    | '/deposer'
+    | '/dons'
+    | '/mon-compte'
+    | '/simulateur'
+    | '/annonce/$id'
+    | '/espace/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/deposer' | '/simulateur' | '/annonce/$id' | '/espace/$slug'
+  to:
+    | '/'
+    | '/connexion'
+    | '/deposer'
+    | '/dons'
+    | '/mon-compte'
+    | '/simulateur'
+    | '/annonce/$id'
+    | '/espace/$slug'
   id:
     | '__root__'
     | '/'
+    | '/connexion'
     | '/deposer'
+    | '/dons'
+    | '/mon-compte'
     | '/simulateur'
     | '/annonce/$id'
     | '/espace/$slug'
@@ -79,7 +125,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConnexionRoute: typeof ConnexionRoute
   DeposerRoute: typeof DeposerRoute
+  DonsRoute: typeof DonsRoute
+  MonCompteRoute: typeof MonCompteRoute
   SimulateurRoute: typeof SimulateurRoute
   AnnonceIdRoute: typeof AnnonceIdRoute
   EspaceSlugRoute: typeof EspaceSlugRoute
@@ -94,11 +143,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/connexion': {
+      id: '/connexion'
+      path: '/connexion'
+      fullPath: '/connexion'
+      preLoaderRoute: typeof ConnexionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/deposer': {
       id: '/deposer'
       path: '/deposer'
       fullPath: '/deposer'
       preLoaderRoute: typeof DeposerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dons': {
+      id: '/dons'
+      path: '/dons'
+      fullPath: '/dons'
+      preLoaderRoute: typeof DonsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mon-compte': {
+      id: '/mon-compte'
+      path: '/mon-compte'
+      fullPath: '/mon-compte'
+      preLoaderRoute: typeof MonCompteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/simulateur': {
@@ -127,7 +197,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConnexionRoute: ConnexionRoute,
   DeposerRoute: DeposerRoute,
+  DonsRoute: DonsRoute,
+  MonCompteRoute: MonCompteRoute,
   SimulateurRoute: SimulateurRoute,
   AnnonceIdRoute: AnnonceIdRoute,
   EspaceSlugRoute: EspaceSlugRoute,

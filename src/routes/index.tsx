@@ -3,8 +3,8 @@ import { ArrowRight, Search, ShieldCheck, Gauge, Heart } from "lucide-react";
 import hero from "@/assets/hero.jpg";
 import { listings as staticListings, spaces, type SpaceSlug } from "@/lib/data";
 import { ListingCard } from "@/components/ListingCard";
-import { getListingsFn } from "@/server/actions/get-listings";
-import type { PublicListing } from "@/server/actions/get-listings";
+import { getListingsFn } from "@/fns/get-listings";
+import type { PublicListing } from "@/fns/get-listings";
 import type { Listing } from "@/lib/data";
 import { formatEUR } from "@/lib/pricing";
 import { MapPin } from "lucide-react";
@@ -125,7 +125,38 @@ function Index() {
         )}
 
         <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
-          {displayListings.map((l) => <ListingCard key={l.id} l={l} />)}
+          {displayListings.slice(0, 4).map((l) => <ListingCard key={l.id} l={l} />)}
+
+          {/* ── Espace publicitaire natif — simulation ── */}
+          <div className="relative col-span-1 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+            <span className="absolute right-2 top-2 z-10 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80">Sponsorisé</span>
+            {/* Visuel publicitaire */}
+            <div className="relative flex h-44 items-center justify-center bg-gradient-to-br from-orange-500 to-amber-400">
+              <div className="text-center text-white px-4">
+                <p className="text-3xl font-bold leading-tight">Brocante<br/>du Marais</p>
+                <p className="mt-1 text-sm font-medium opacity-90">Paris 3e · Chaque samedi</p>
+              </div>
+              <div className="absolute bottom-3 right-3 text-4xl">🛋️</div>
+            </div>
+            {/* Contenu */}
+            <div className="flex flex-1 flex-col gap-2 p-4">
+              <p className="text-sm font-semibold text-foreground leading-snug">
+                Trouvez des pépites chez nos vendeurs partenaires
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Meubles, vaisselle, livres, vêtements — des centaines de stands chaque semaine.
+              </p>
+              <a
+                href="#"
+                onClick={(e) => e.preventDefault()}
+                className="mt-auto inline-block rounded-full bg-orange-500 px-4 py-1.5 text-center text-xs font-semibold text-white hover:bg-orange-600 transition"
+              >
+                Voir les stands →
+              </a>
+            </div>
+          </div>
+
+          {displayListings.slice(4).map((l) => <ListingCard key={l.id} l={l} />)}
         </div>
       </section>
 

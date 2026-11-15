@@ -8,8 +8,8 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { getDonationsFn, type PublicDon } from "@/server/actions/get-donations";
-import { reserveDonationFn } from "@/server/actions/reserve-donation";
+import { getDonationsFn, type PublicDon } from "@/fns/get-donations";
+import { reserveDonationFn } from "@/fns/reserve-donation";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/dons")({

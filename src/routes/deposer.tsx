@@ -26,8 +26,8 @@ import { defaultP2PConfig, type CategoryId, type ConditionId } from "@/lib/prici
 import { defaultProConfig } from "@/lib/pricing/pro";
 import { defaultVehicleConfig } from "@/lib/pricing/vehicle";
 import { formatEUR } from "@/lib/pricing";
-import { submitListingFn, type SubmitListingInput } from "@/server/actions/submit-listing";
-import { uploadPhotoFn } from "@/server/actions/upload-photo";
+import { submitListingFn, type SubmitListingInput } from "@/fns/submit-listing";
+import { uploadPhotoFn } from "@/fns/upload-photo";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/deposer")({

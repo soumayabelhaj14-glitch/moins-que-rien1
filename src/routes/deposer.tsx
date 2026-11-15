@@ -496,12 +496,15 @@ function Deposer() {
           />
         </label>
 
-        {/* Description */}
+        {/* Observations complémentaires */}
         <label className="grid gap-2 text-sm">
-          Description (optionnelle)
+          Observations complémentaires
+          <span className="text-xs text-muted-foreground font-normal -mt-1">
+            Défauts visibles, accessoires inclus, raison de la vente, disponibilité…
+          </span>
           <textarea
-            className={`${field} min-h-[80px] resize-y`}
-            placeholder="État détaillé, accessoires inclus, raison de la vente…"
+            className={`${field} min-h-[100px] resize-y`}
+            placeholder="Ex : légère rayure sur le côté gauche, télécommande incluse, vendu car déménagement…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}

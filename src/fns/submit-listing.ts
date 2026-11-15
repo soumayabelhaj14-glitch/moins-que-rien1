@@ -180,10 +180,12 @@ export async function processListingSubmission(
       confidenceScore = 0; // toujours pending_price_review pour un prix manuel
     }
 
-    const autoApproved = referenceNewValueEur !== null && confidenceScore >= CONFIDENCE_THRESHOLD_AUTO;
-    pendingPriceReview = !autoApproved;
+    // La règle de cotation s'applique TOUJOURS si on a un prix neuf —
+    // qu'il soit trouvé automatiquement ou renseigné manuellement.
+    // `pendingPriceReview` concerne la vérification de la SOURCE du prix, pas le calcul.
+    pendingPriceReview = confidenceScore < CONFIDENCE_THRESHOLD_AUTO;
 
-    if (autoApproved && referenceNewValueEur !== null) {
+    if (referenceNewValueEur !== null) {
       if (data.mode === "particulier") {
         // SÉCURITÉ : la majoration de garantie ne peut être accordée que sur
         // justificatif vérifié par un administrateur.

@@ -194,54 +194,59 @@ export const lookupPriceFn = createServerFn({
       };
     }
 
-    // ── 2. Calcul du plafond (côté serveur uniquement) ───────────────────────
-    const autoApproved = confidenceScore >= CONFIDENCE_THRESHOLD_AUTO;
-    const pendingPriceReview = !autoApproved;
+    // ── 2. Calcul du plafond (côté serveur, TOUJOURS si on a un prix neuf) ────
+    //
+    // La règle de cotation s'applique systématiquement, qu'il s'agisse d'un prix
+    // trouvé automatiquement ou renseigné manuellement par le vendeur.
+    // Le moteur (computeP2P / computePro / computeVehicle) est la source unique
+    // de vérité pour le plafond (AGENTS.md).
+    //
+    // `pendingPriceReview` concerne uniquement la VÉRIFICATION DE LA SOURCE du
+    // prix neuf par un admin — pas le calcul du plafond lui-même.
+    const pendingPriceReview = confidenceScore < CONFIDENCE_THRESHOLD_AUTO;
 
     let maxPriceEur: number | null = null;
 
-    if (autoApproved) {
-      try {
-        if (data.mode === "particulier") {
-          const r = computeP2P(
-            {
-              referenceNewValue: priceEUR,
-              category: data.category as Parameters<typeof computeP2P>[0]["category"],
-              ageYears: data.ageYears,
-              condition: data.condition as Parameters<typeof computeP2P>[0]["condition"],
-              verifiedWarrantyDaysLeft: null,
-            },
-            defaultP2PConfig,
-          );
-          maxPriceEur = r.maxPrice;
-        } else if (data.mode === "pro") {
-          const r = computePro(
-            {
-              referenceValueHT: priceEUR,
-              category: data.category,
-              stockAgeYears: data.ageYears,
-              condition: data.condition,
-              quantity: data.quantity ?? 1,
-            },
-            defaultProConfig,
-          );
-          maxPriceEur = r.maxPrice;
-        } else if (data.mode === "vehicule") {
-          const r = computeVehicle(
-            {
-              referenceValue: priceEUR,
-              type: data.category,
-              ageYears: data.ageYears,
-              km: data.km ?? 0,
-              condition: data.condition,
-            },
-            defaultVehicleConfig,
-          );
-          maxPriceEur = r.maxPrice;
-        }
-      } catch {
-        maxPriceEur = null;
+    try {
+      if (data.mode === "particulier") {
+        const r = computeP2P(
+          {
+            referenceNewValue: priceEUR,
+            category: data.category as Parameters<typeof computeP2P>[0]["category"],
+            ageYears: data.ageYears,
+            condition: data.condition as Parameters<typeof computeP2P>[0]["condition"],
+            verifiedWarrantyDaysLeft: null,
+          },
+          defaultP2PConfig,
+        );
+        maxPriceEur = r.maxPrice;
+      } else if (data.mode === "pro") {
+        const r = computePro(
+          {
+            referenceValueHT: priceEUR,
+            category: data.category,
+            stockAgeYears: data.ageYears,
+            condition: data.condition,
+            quantity: data.quantity ?? 1,
+          },
+          defaultProConfig,
+        );
+        maxPriceEur = r.maxPrice;
+      } else if (data.mode === "vehicule") {
+        const r = computeVehicle(
+          {
+            referenceValue: priceEUR,
+            type: data.category,
+            ageYears: data.ageYears,
+            km: data.km ?? 0,
+            condition: data.condition,
+          },
+          defaultVehicleConfig,
+        );
+        maxPriceEur = r.maxPrice;
       }
+    } catch {
+      maxPriceEur = null;
     }
 
     return {

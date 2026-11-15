@@ -67,6 +67,16 @@ export type SubmitListingInput = {
   manualNewPriceEur?: number;
   /** URL ou nom du site source (ex : https://amazon.fr/dp/XXX ou "Darty"). */
   manualSourceUrl?: string;
+
+  /** Matière principale de l'objet (ex : "bois", "métal", "cuir"…). */
+  matiere?: string;
+
+  /**
+   * Token d'accès Supabase passé directement dans le payload (contournement
+   * du problème de forwarding des headers HTTP dans TanStack Start v1.168+).
+   * Ne jamais stocker ni logger cette valeur.
+   */
+  _authToken?: string;
 };
 
 export type SubmitListingResult =
@@ -291,9 +301,12 @@ export const submitListingFn = createServerFn({
   .validator((data: SubmitListingInput) => data)
   .handler(async ({ data }): Promise<SubmitListingResult> => {
     // 1. Vérifier l'authentification
-    // getRequestHeader() lit les headers HTTP de la requête courante via l'AsyncLocalStorage
-    // de TanStack Start — c'est l'API correcte pour TanStack Start v1.168+.
-    const authHeader = getRequestHeader("authorization");
+    // On préfère _authToken passé dans le payload (plus fiable que les headers HTTP
+    // dans TanStack Start v1.168+ où le forwarding des headers personnalisés est incertain).
+    // getRequestHeader() reste en fallback pour de futurs clients alternatifs.
+    const authHeader = data._authToken
+      ? `Bearer ${data._authToken}`
+      : getRequestHeader("authorization");
 
     // Protéger contre une clé SERVICE_ROLE manquante en production :
     // getSupabaseAdmin() throw si SUPABASE_SERVICE_ROLE_KEY n'est pas défini.

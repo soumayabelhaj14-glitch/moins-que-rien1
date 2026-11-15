@@ -103,6 +103,7 @@ function Deposer() {
   const [brandModel, setBrandModel] = useState("");
   const [working, setWorking] = useState<"oui" | "partiellement" | "non" | "non-teste">("oui");
   const [accessories, setAccessories] = useState("");
+  const [matiere, setMatiere] = useState("");
   const [delivery, setDelivery] = useState<"main-propre" | "envoi" | "les-deux">("main-propre");
   const [location, setLocation] = useState("");
   const [certified, setCertified] = useState(false);
@@ -326,18 +327,22 @@ function Deposer() {
       }
 
       const result = await submitListingFn({
-        headers: { Authorization: `Bearer ${session.access_token}` },
         data: {
+          // Auth via payload (les headers personnalisés ne transitent pas toujours
+          // vers le contexte H3 dans TanStack Start v1.168+).
+          _authToken: session.access_token,
           title: title.trim(),
-          ...(description.trim() || brandModel.trim() || accessories.trim()
+          ...(description.trim() || brandModel.trim() || accessories.trim() || matiere.trim()
             ? { description: [
                 brandModel.trim() ? `Marque/modèle : ${brandModel.trim()}` : "",
+                matiere.trim() ? `Matière : ${matiere.trim()}` : "",
                 `Fonctionnement : ${{ oui: "Fonctionne correctement", partiellement: "Fonctionne partiellement", non: "Ne fonctionne pas", "non-teste": "Non testé" }[working]}`,
                 accessories.trim() ? `Accessoires : ${accessories.trim()}` : "",
                 `Mode de remise : ${{ "main-propre": "Remise en main propre", envoi: "Envoi postal", "les-deux": "Remise en main propre ou envoi postal" }[delivery]}`,
                 description.trim(),
               ].filter(Boolean).join("\n") }
             : {}),
+          ...(matiere.trim() ? { matiere: matiere.trim() } : {}),
           ...(location.trim() ? { location: location.trim() } : {}),
           ...(contactEmail.trim() ? { contactEmail: contactEmail.trim() } : {}),
           ...(contactPhone.trim() ? { contactPhone: contactPhone.trim() } : {}),
@@ -555,6 +560,27 @@ function Deposer() {
             maxLength={200}
           />
         </label>
+
+        {/* Matière principale */}
+        <div className="grid gap-2 text-sm">
+          <span className="font-medium">Matière principale <span className="font-normal text-muted-foreground">(facultatif)</span></span>
+          <div className="flex flex-wrap gap-2">
+            {(["Bois", "Teck", "Métal", "Plastique", "Tissu", "Cuir", "Simili-cuir", "Verre", "Céramique", "Autre"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setMatiere(matiere === v ? "" : v)}
+                className={`rounded-full border px-4 py-1.5 text-sm transition ${
+                  matiere === v
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card hover:border-primary/50"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Mode de remise */}
         <div className="grid gap-2 text-sm">

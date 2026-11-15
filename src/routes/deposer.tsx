@@ -103,7 +103,9 @@ function Deposer() {
   const [brandModel, setBrandModel] = useState("");
   const [working, setWorking] = useState<"oui" | "partiellement" | "non" | "non-teste">("oui");
   const [accessories, setAccessories] = useState("");
+  const [delivery, setDelivery] = useState<"main-propre" | "envoi" | "les-deux">("main-propre");
   const [location, setLocation] = useState("");
+  const [certified, setCertified] = useState(false);
   const [ean, setEan] = useState("");
   const [reference, setReference] = useState("");
 
@@ -332,6 +334,7 @@ function Deposer() {
                 brandModel.trim() ? `Marque/modèle : ${brandModel.trim()}` : "",
                 `Fonctionnement : ${{ oui: "Fonctionne correctement", partiellement: "Fonctionne partiellement", non: "Ne fonctionne pas", "non-teste": "Non testé" }[working]}`,
                 accessories.trim() ? `Accessoires : ${accessories.trim()}` : "",
+                `Mode de remise : ${{ "main-propre": "Remise en main propre", envoi: "Envoi postal", "les-deux": "Remise en main propre ou envoi postal" }[delivery]}`,
                 description.trim(),
               ].filter(Boolean).join("\n") }
             : {}),
@@ -552,6 +555,27 @@ function Deposer() {
             maxLength={200}
           />
         </label>
+
+        {/* Mode de remise */}
+        <div className="grid gap-2 text-sm">
+          <span className="font-medium">Mode de remise</span>
+          <div className="flex flex-wrap gap-2">
+            {(["main-propre", "envoi", "les-deux"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setDelivery(v)}
+                className={`rounded-full border px-4 py-1.5 text-sm transition ${
+                  delivery === v
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card hover:border-primary/50"
+                }`}
+              >
+                {{ "main-propre": "Remise en main propre", envoi: "Envoi postal", "les-deux": "Les deux" }[v]}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Commune / Code postal */}
         <label className="grid gap-2 text-sm">
@@ -999,10 +1023,25 @@ function Deposer() {
           </div>
         )}
 
+        {/* Attestation de conformité */}
+        <label className="flex items-start gap-3 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            required
+            checked={certified}
+            onChange={(e) => setCertified(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-primary shrink-0"
+          />
+          <span>
+            Je certifie que les informations, photos et prix renseignés sont exacts et correspondent à l'objet mis en vente.
+            Toute fausse déclaration entraîne le rejet de l'annonce.
+          </span>
+        </label>
+
         {/* Bouton publier */}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !certified}
           className="rounded-full bg-warm py-3.5 font-semibold text-primary-foreground shadow-glow transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}

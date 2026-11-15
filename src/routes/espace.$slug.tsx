@@ -8,7 +8,7 @@ export const Route = createFileRoute("/espace/$slug")({
     if (!space) throw notFound();
     return { slug: params.slug as SpaceSlug, space };
   },
-  head: ({ loaderData }: { loaderData: { slug: SpaceSlug; space: (typeof spaces)[SpaceSlug] } | undefined }) => {
+  head: ({ loaderData }: { loaderData?: { slug: SpaceSlug; space: (typeof spaces)[SpaceSlug] } }) => {
     const t = loaderData ? `${loaderData.space.title} — Moins que rien` : "Espace — Moins que rien";
     const d = loaderData?.space.desc ?? "Annonces à prix plafonnés.";
     return { meta: [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }] };

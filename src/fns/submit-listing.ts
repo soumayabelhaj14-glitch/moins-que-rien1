@@ -58,9 +58,14 @@ export type SubmitListingInput = {
   // Mode Véhicule : kilométrage réel
   km?: number;
 
-  // NOTE : il n'y a pas de champ `manualReferenceNewValueEur`.
-  // Le vendeur ne peut jamais soumettre sa propre valeur de référence.
-  // Le serveur est seul responsable de la recherche du prix neuf.
+  /**
+   * Prix neuf saisi manuellement par le vendeur (€ TTC).
+   * Utilisé comme FALLBACK si l'auto-lookup échoue.
+   * Déclenche toujours `pending_price_review` → validation admin avant publication.
+   */
+  manualNewPriceEur?: number;
+  /** URL ou nom du site source (ex : https://amazon.fr/dp/XXX ou "Darty"). */
+  manualSourceUrl?: string;
 };
 
 export type SubmitListingResult =
@@ -164,6 +169,15 @@ export async function processListingSubmission(
       referenceNewValueEur = null;
       priceNewSource = "erreur_réseau";
       confidenceScore = 0;
+    }
+
+    // Fallback : prix neuf saisi manuellement par le vendeur
+    if (referenceNewValueEur === null && data.manualNewPriceEur && data.manualNewPriceEur > 0) {
+      referenceNewValueEur = data.manualNewPriceEur;
+      priceNewSource = data.manualSourceUrl ?? "manuel_vendeur";
+      priceNewConfidence = "manual_admin";
+      priceNewFetchedAt = new Date().toISOString();
+      confidenceScore = 0; // toujours pending_price_review pour un prix manuel
     }
 
     const autoApproved = referenceNewValueEur !== null && confidenceScore >= CONFIDENCE_THRESHOLD_AUTO;
@@ -274,8 +288,23 @@ export const submitListingFn = createServerFn({
   .validator((data: SubmitListingInput) => data)
   .handler(async ({ data, context }): Promise<SubmitListingResult> => {
     // 1. Vérifier l'authentification
-    const authHeader = (context as { request: Request }).request.headers.get("authorization");
-    const supabaseAdmin = getSupabaseAdmin();
+    const authHeader = (context as unknown as { request: Request }).request.headers.get("authorization");
+
+    // Protéger contre une clé SERVICE_ROLE manquante en production :
+    // getSupabaseAdmin() throw si SUPABASE_SERVICE_ROLE_KEY n'est pas défini.
+    // Sans ce try/catch, l'exception remonte dans TanStack Start qui renvoie un 500
+    // brut — le client le perçoit comme "erreur réseau" sans aucun message utile.
+    let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+    try {
+      supabaseAdmin = getSupabaseAdmin();
+    } catch {
+      console.error("[submit-listing] SUPABASE_SERVICE_ROLE_KEY manquant ou invalide.");
+      return {
+        ok: false,
+        error: "Le serveur n'est pas encore configuré pour enregistrer des annonces. Contactez l'administrateur.",
+        code: "db",
+      };
+    }
 
     const {
       data: { user },

@@ -34,7 +34,7 @@ export const reserveDonationFn = createServerFn({ method: "POST" })
   .validator((data: ReserveDonationInput) => data)
   .handler(async ({ data, context }): Promise<ReserveDonationResult> => {
     // ── 1. Authentification ──────────────────────────────────────────────────
-    const authHeader = (context as { request: Request }).request.headers.get("authorization") ?? "";
+    const authHeader = (context as unknown as { request: Request }).request.headers.get("authorization") ?? "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!token) {

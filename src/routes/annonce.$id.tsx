@@ -9,7 +9,7 @@ export const Route = createFileRoute("/annonce/$id")({
     if (!l) throw notFound();
     return l;
   },
-  head: ({ loaderData }: { loaderData: ReturnType<typeof getListing> }) => {
+  head: ({ loaderData }: { loaderData?: ReturnType<typeof getListing> }) => {
     const t = loaderData ? `${loaderData.title} — Moins que rien` : "Annonce — Moins que rien";
     const d = loaderData?.description ?? "Annonce à prix plafonné.";
     return { meta: [{ title: t }, { name: "description", content: d }, { property: "og:title", content: t }, { property: "og:description", content: d }] };

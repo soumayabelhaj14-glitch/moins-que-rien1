@@ -20,14 +20,15 @@
  */
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { Info, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Info, AlertCircle, Loader2, ExternalLink, CheckCircle2, Clock } from "lucide-react";
 import { defaultP2PConfig, type CategoryId, type ConditionId } from "@/lib/pricing/p2p";
 import { defaultProConfig } from "@/lib/pricing/pro";
 import { defaultVehicleConfig } from "@/lib/pricing/vehicle";
 import { formatEUR } from "@/lib/pricing";
 import { submitListingFn, type SubmitListingInput } from "@/fns/submit-listing";
 import { uploadPhotoFn } from "@/fns/upload-photo";
+import { lookupPriceFn, type LookupPriceResult } from "@/fns/lookup-price";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/deposer")({
@@ -92,6 +93,15 @@ function Deposer() {
   const [ean, setEan] = useState("");
   const [reference, setReference] = useState("");
 
+  /* ── Prix neuf manuel + source ───────────────────────────── */
+  const [manualPriceEur, setManualPriceEur] = useState<number | "">("");
+  const [manualSourceUrl, setManualSourceUrl] = useState("");
+
+  /* ── Lookup automatique ──────────────────────────────────── */
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<LookupPriceResult | null>(null);
+  const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /* ── Particulier (P2P) ───────────────────────────────────── */
   const p2pCfg = defaultP2PConfig;
   const [p2pCategory, setP2pCategory] = useState<CategoryId>("informatique");
@@ -118,18 +128,68 @@ function Deposer() {
   /* ── Prix vendeur ────────────────────────────────────────── */
   const [askingPrice, setAskingPrice] = useState<number | "">("");
 
-  /* ── Plafond indicatif côté client ──────────────────────────
-   * ATTENTION : ce plafond est uniquement indicatif pour l'interface.
-   * Le plafond DÉFINITIF est calculé côté serveur par submitListingFn,
-   * à partir du prix neuf trouvé automatiquement (jamais fourni par le client).
-   * ─────────────────────────────────────────────────────────── */
-  /**
-   * Le plafond indicatif côté client est SUPPRIMÉ.
-   * Il n'existe aucune valeur neuve de référence côté client avant soumission :
-   * seul le serveur effectue la recherche automatique du prix neuf.
-   * Cette variable est conservée en tant que null pour ne pas modifier le JSX.
-   */
-  const capResult = null;
+  /* ── Lookup automatique — déclenché par EAN / référence / mode ─────────── */
+  const triggerLookup = useCallback(() => {
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+
+    // Si aucun identifiant ET aucun prix manuel → on efface le résultat
+    const hasIdentifier = ean.trim() || reference.trim() || title.trim();
+    const hasManual = typeof manualPriceEur === "number" && manualPriceEur > 0;
+    if (!hasIdentifier && !hasManual) {
+      setLookupResult(null);
+      return;
+    }
+
+    lookupTimerRef.current = setTimeout(async () => {
+      setLookupLoading(true);
+      try {
+        const condition =
+          mode === "particulier" ? p2pCondition
+          : mode === "pro" ? proCondition
+          : mode === "vehicule" ? vehCondition
+          : "bon";
+        const category =
+          mode === "particulier" ? p2pCategory
+          : mode === "pro" ? proCategory
+          : mode === "vehicule" ? vehType
+          : "don";
+        const ageYears =
+          mode === "particulier" ? p2pAge
+          : mode === "pro" ? proStockAge
+          : mode === "vehicule" ? vehAge
+          : 0;
+
+        const result = await lookupPriceFn({
+          data: {
+            mode,
+            category,
+            condition,
+            ageYears,
+            ...(ean.trim() ? { ean: ean.trim() } : {}),
+            ...(reference.trim() ? { reference: reference.trim() } : {}),
+            ...(title.trim() ? { title: title.trim() } : {}),
+            ...(typeof manualPriceEur === "number" && manualPriceEur > 0 ? { manualPriceEur } : {}),
+            ...(manualSourceUrl.trim() ? { manualSourceUrl: manualSourceUrl.trim() } : {}),
+            ...(mode === "pro" ? { quantity: proQty } : {}),
+            ...(mode === "vehicule" ? { km: vehKm } : {}),
+          },
+        });
+        setLookupResult(result);
+      } catch {
+        setLookupResult({ ok: false, reason: "network_error", message: "Erreur de connexion au serveur." });
+      } finally {
+        setLookupLoading(false);
+      }
+    }, 700);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ean, reference, title, manualPriceEur, manualSourceUrl, mode, p2pCategory, p2pAge, p2pCondition, proCategory, proStockAge, proCondition, proQty, vehType, vehAge, vehKm, vehCondition]);
+
+  useEffect(() => {
+    triggerLookup();
+    return () => { if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current); };
+  }, [triggerLookup]);
+
+  const capResult = null; // plafond calculé serveur-side, affiché via lookupResult
 
   const asking = typeof askingPrice === "number" ? askingPrice : 0;
 
@@ -198,7 +258,7 @@ function Deposer() {
         headers: { Authorization: `Bearer ${session.access_token}` },
         data: {
           title: title.trim(),
-          description: description.trim() || undefined,
+          ...(description.trim() ? { description: description.trim() } : {}),
           category: mode === "particulier" ? p2pCategory
             : mode === "pro" ? proCategory
             : mode === "vehicule" ? vehType
@@ -211,18 +271,21 @@ function Deposer() {
             : mode === "pro" ? proStockAge
             : mode === "vehicule" ? vehAge
             : 0,
-          ean: ean.trim() || undefined,
-          reference: reference.trim() || undefined,
+          ...(ean.trim() ? { ean: ean.trim() } : {}),
+          ...(reference.trim() ? { reference: reference.trim() } : {}),
           mode: mode === "don_asso" ? "don_association" : mode === "don" ? "don" : mode,
-          associationId: mode === "don_asso" ? selectedAssocId || undefined : undefined,
-          askedPriceEur: mode !== "don" && mode !== "don_asso" && asking > 0 ? asking : undefined,
+          ...(mode === "don_asso" && selectedAssocId ? { associationId: selectedAssocId } : {}),
+          ...(mode !== "don" && mode !== "don_asso" && asking > 0 ? { askedPriceEur: asking } : {}),
+          // Prix neuf manuel (fallback si l'auto-lookup échoue)
+          ...(typeof manualPriceEur === "number" && manualPriceEur > 0 ? { manualNewPriceEur: manualPriceEur } : {}),
+          ...(manualSourceUrl.trim() ? { manualSourceUrl: manualSourceUrl.trim() } : {}),
           // Garantie : déclarée par le vendeur, NON vérifiée automatiquement
           // Elle sera contrôlée par un modérateur avant publication
           verifiedWarrantyDaysLeft: mode === "particulier" && p2pWarranty ? p2pWarrantyDays : null,
           // Pro : quantité réelle du lot
-          quantity: mode === "pro" ? proQty : undefined,
+          ...(mode === "pro" ? { quantity: proQty } : {}),
           // Véhicule : kilométrage réel saisi par le vendeur
-          km: mode === "vehicule" ? vehKm : undefined,
+          ...(mode === "vehicule" ? { km: vehKm } : {}),
         },
       });
 
@@ -233,7 +296,15 @@ function Deposer() {
 
       setSubmitted({ listingId: result.listingId, pendingPriceReview: result.pendingPriceReview });
     } catch (err) {
-      setSubmitError("Une erreur réseau s'est produite. Veuillez réessayer.");
+      // L'erreur réseau survient quand le serveur plante avant de retourner une réponse
+      // structurée (ex : variable d'environnement manquante côté serveur).
+      const msg = err instanceof Error ? err.message : String(err);
+      const isConfig = msg.includes("SERVICE_ROLE") || msg.includes("500") || msg.includes("server");
+      setSubmitError(
+        isConfig
+          ? "Le serveur n'est pas encore configuré pour enregistrer des annonces. Contactez l'administrateur (clé Supabase manquante)."
+          : "Une erreur réseau s'est produite. Veuillez réessayer.",
+      );
       console.error("[deposer] submitListingFn error:", err);
     } finally {
       setSubmitting(false);
@@ -308,7 +379,8 @@ function Deposer() {
     <div className="mx-auto max-w-3xl px-4 pt-10 pb-16 md:px-8">
       <h1 className="text-4xl md:text-5xl fade-up">Déposer une annonce</h1>
       <p className="mt-3 text-muted-foreground">
-        Le prix neuf est recherché automatiquement côté serveur. Le plafond définitif vous est communiqué après validation.
+        Renseignez votre objet : le plafond de vente s'affiche en temps réel.
+        Vous pouvez saisir le prix neuf manuellement si l'EAN ou la référence ne suffit pas.
       </p>
 
       {/* Avertissement garantie / ancienneté */}
@@ -393,15 +465,43 @@ function Deposer() {
           </label>
         </div>
 
-        {/* Note sécurité : valeur neuve non saisissable */}
-        {mode !== "don" && (
-          <div className="flex gap-3 rounded-2xl border border-border bg-secondary/60 p-4 text-sm">
-            <Info className="h-5 w-5 shrink-0 text-primary mt-0.5" />
-            <p>
-              <strong>Valeur neuve calculée automatiquement.</strong> Le serveur recherche le prix neuf
-              de votre objet (EAN, référence, titre). Vous ne pouvez pas le modifier.
-              Si aucune source fiable n'est disponible, l'annonce sera soumise à une vérification administrative.
+        {/* ── Valeur neuve + source ── */}
+        {mode !== "don" && mode !== "don_asso" && (
+          <div className="rounded-2xl border border-border bg-secondary/40 p-5 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Info className="h-4 w-4 text-primary shrink-0" />
+              Valeur neuve du produit
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Renseignez le prix neuf si vous le connaissez (Amazon, Darty, Fnac…).
+              Le serveur tente également de le trouver automatiquement via l'EAN ou la référence.
+              <strong className="text-foreground"> Un prix renseigné manuellement sera validé par un administrateur.</strong>
             </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm">
+                Prix neuf connu (€ TTC)
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className={field}
+                  placeholder="Ex : 299"
+                  value={manualPriceEur === "" ? "" : manualPriceEur}
+                  onChange={(e) => setManualPriceEur(e.target.value === "" ? "" : +e.target.value)}
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                Lien ou source (optionnel)
+                <input
+                  type="text"
+                  className={field}
+                  placeholder="https://amazon.fr/dp/… ou « Darty »"
+                  value={manualSourceUrl}
+                  onChange={(e) => setManualSourceUrl(e.target.value)}
+                  maxLength={500}
+                />
+              </label>
+            </div>
           </div>
         )}
 
@@ -546,15 +646,88 @@ function Deposer() {
           </div>
         )}
 
-        {/* ── Prix vendeur ── */}
-        {mode !== "don" && (
-          <div className="rounded-2xl bg-secondary p-5">
-            <p className="text-sm text-muted-foreground">Plafond de vente — calculé par le serveur après identification du produit</p>
-            <p className="font-display text-3xl font-semibold text-primary">
-              —
-              <span className="text-sm font-normal text-muted-foreground ml-2">connu après soumission</span>
-            </p>
-            <label className="mt-4 grid gap-2 text-sm">
+        {/* ── Plafond calculé + prix vendeur ── */}
+        {mode !== "don" && mode !== "don_asso" && (
+          <div className="rounded-2xl bg-secondary p-5 space-y-4">
+            {/* Résultat du lookup */}
+            {lookupLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Recherche du prix neuf en cours…
+              </div>
+            )}
+
+            {!lookupLoading && lookupResult && lookupResult.ok && (
+              <div className="space-y-1">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valeur neuve retenue</p>
+                    <p className="text-xl font-semibold">
+                      {formatEUR(lookupResult.priceEUR)}
+                      {lookupResult.confidence === "manual" && (
+                        <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">manuel</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                      Source&nbsp;:&nbsp;
+                      {lookupResult.sourceUrl ? (
+                        <a
+                          href={lookupResult.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-2 hover:text-primary flex items-center gap-0.5"
+                        >
+                          {lookupResult.source}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span>{lookupResult.source}</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Plafond de vente</p>
+                    {lookupResult.maxPriceEur !== null ? (
+                      <p className="font-display text-3xl font-semibold text-primary">
+                        {formatEUR(lookupResult.maxPriceEur)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1 justify-end">
+                        <Clock className="h-4 w-4" />
+                        Validation admin
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {lookupResult.pendingPriceReview ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-200">
+                    <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <p>{lookupResult.warningMessage ?? "Le plafond sera défini après validation administrative du prix neuf."}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 p-3 text-xs text-green-800 dark:text-green-200">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <p>Prix validé automatiquement. Votre annonce ne devra pas dépasser {lookupResult.maxPriceEur !== null ? formatEUR(lookupResult.maxPriceEur) : "ce plafond"}.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!lookupLoading && lookupResult && !lookupResult.ok && (
+              <div className="flex items-start gap-2 rounded-xl border border-border bg-background/60 p-3 text-xs text-muted-foreground">
+                <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <p>{lookupResult.message}</p>
+              </div>
+            )}
+
+            {!lookupLoading && !lookupResult && (
+              <p className="text-sm text-muted-foreground">
+                Plafond de vente — renseignez un EAN, une référence ou un prix neuf ci-dessus.
+              </p>
+            )}
+
+            {/* Prix demandé par le vendeur */}
+            <label className="grid gap-2 text-sm border-t border-border/50 pt-4">
               Votre prix de vente (€)
               <input
                 type="number"
@@ -565,8 +738,14 @@ function Deposer() {
                 placeholder="Laissez vide pour proposer au plafond"
               />
             </label>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Le serveur vérifiera que votre prix ne dépasse pas le plafond calculé.
+            {lookupResult?.ok && lookupResult.maxPriceEur !== null && asking > lookupResult.maxPriceEur && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Votre prix ({formatEUR(asking)}) dépasse le plafond autorisé ({formatEUR(lookupResult.maxPriceEur)}).
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Le serveur vérifiera que votre prix ne dépasse pas le plafond final.
               Si votre prix dépasse le plafond réel, la soumission sera refusée.
             </p>
           </div>

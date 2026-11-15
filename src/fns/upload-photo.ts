@@ -47,7 +47,7 @@ export const uploadPhotoFn = createServerFn({ method: "POST" })
   .validator((data: UploadPhotoInput) => data)
   .handler(async ({ data, context }): Promise<UploadPhotoResult> => {
     // ── 1. Authentification ──────────────────────────────────────────────────
-    const authHeader = (context as { request: Request }).request.headers.get("authorization") ?? "";
+    const authHeader = (context as unknown as { request: Request }).request.headers.get("authorization") ?? "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!token) {

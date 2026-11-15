@@ -46,7 +46,7 @@ function Simulateur() {
           <label className="grid gap-2 text-sm">Valeur neuve de référence (€)<input type="number" min={0} className={field} value={value} onChange={(e) => setValue(+e.target.value)} /></label>
           <label className="grid gap-2 text-sm">Catégorie
             <select className={field} value={category} onChange={(e) => setCategory(e.target.value as CategoryId)}>
-              {cfg.categories.map((c) => <option key={c.id} value={c.id}>{c.label} — {pct(c.startRate)}</option>)}
+              {cfg.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </label>
           <div className="grid gap-5 sm:grid-cols-2">

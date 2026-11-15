@@ -14,6 +14,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { computeP2P, defaultP2PConfig } from "@/lib/pricing/p2p";
 import { computePro, defaultProConfig } from "@/lib/pricing/pro";
 import { computeVehicle, defaultVehicleConfig } from "@/lib/pricing/vehicle";
@@ -288,9 +289,11 @@ export const submitListingFn = createServerFn({
   method: "POST",
 })
   .validator((data: SubmitListingInput) => data)
-  .handler(async ({ data, context }): Promise<SubmitListingResult> => {
+  .handler(async ({ data }): Promise<SubmitListingResult> => {
     // 1. Vérifier l'authentification
-    const authHeader = (context as unknown as { request: Request }).request.headers.get("authorization");
+    // getRequestHeader() lit les headers HTTP de la requête courante via l'AsyncLocalStorage
+    // de TanStack Start — c'est l'API correcte pour TanStack Start v1.168+.
+    const authHeader = getRequestHeader("authorization");
 
     // Protéger contre une clé SERVICE_ROLE manquante en production :
     // getSupabaseAdmin() throw si SUPABASE_SERVICE_ROLE_KEY n'est pas défini.
